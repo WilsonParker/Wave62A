@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "ALMA FESHLL Assistant",
+  "version": "1.0.0",
+  "description": "INDITEX ALMA FESHLL 보조 도구 - 언어 자동 설정",
+  "permissions": ["storage", "cookies"],
+  "action": {
+    "default_popup": "src/popup.html",
+    "default_title": "ALMA 언어 설정"
+  },
+  "host_permissions": [
+    "https://apps.inditex.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://apps.inditex.com/almafeshll/*"],
+      "js": ["src/injector.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
