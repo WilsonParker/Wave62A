@@ -5,6 +5,7 @@
   const LANG_GUARD_KEY = '__alma_lang_guard';
   const LANG_MAX_TRIES = 2;
   const LANG_WINDOW_MS = 60000;
+  const CHECK_MS = 2000;
 
   function getLocaleCookie() {
     const m = document.cookie.match(/(?:^|;\s*)locale=([^;]*)/);
@@ -28,14 +29,37 @@
     return !Array.from(document.scripts).some(s => s.src && !s.defer && !s.async && s.type !== 'module');
   }
 
-  chrome.storage.sync.get({ locale: 'ko-KR', enabled: true }, function (s) {
-    const raw = (s.locale || '').trim();
-    const desired = LOCALE_ALIASES[raw.toLowerCase()] || raw;
-    if (!s.enabled || !desired) return;
-    const current = getLocaleCookie();
-    if (current !== null && current.toLowerCase() === desired.toLowerCase()) return;
-    const beforeApp = appNotStarted();
-    document.cookie = 'locale=' + encodeURIComponent(desired) + '; path=/; max-age=31536000; secure; samesite=lax';
-    if (!beforeApp && langGuardAllows()) location.reload();
-  });
+  const isKorean = v => /^ko(-|$)/i.test(v || '');
+  let timer = null;
+  let firstRun = true;
+
+  function enforceLanguage() {
+    if (!chrome.runtime || !chrome.runtime.id) {
+      clearInterval(timer);
+      return;
+    }
+    chrome.storage.sync.get({ locale: 'ko-KR', enabled: true }, function (s) {
+      const raw = (s.locale || '').trim();
+      const desired = LOCALE_ALIASES[raw.toLowerCase()] || raw;
+      if (!s.enabled || !desired) return;
+      const cookie = getLocaleCookie();
+      const pageLang = document.documentElement.lang;
+      const wantsKorean = isKorean(desired);
+      // First run: the app ignores a bare "ko", so require the exact value. Afterwards accept
+      // any ko* cookie (Wave62B writes "ko" for BICO) to avoid fighting it, but still fix a
+      // page whose rendered language is not Korean.
+      const cookieOk = firstRun
+        ? cookie !== null && cookie.toLowerCase() === desired.toLowerCase()
+        : (wantsKorean ? isKorean(cookie) : cookie !== null && cookie.toLowerCase() === desired.toLowerCase());
+      const pageOk = !wantsKorean || !pageLang || isKorean(pageLang);
+      firstRun = false;
+      if (cookieOk && pageOk) return;
+      const beforeApp = appNotStarted();
+      document.cookie = 'locale=' + encodeURIComponent(desired) + '; path=/; max-age=31536000; secure; samesite=lax';
+      if (!beforeApp && langGuardAllows()) location.reload();
+    });
+  }
+
+  enforceLanguage();
+  timer = setInterval(enforceLanguage, CHECK_MS);
 })();
